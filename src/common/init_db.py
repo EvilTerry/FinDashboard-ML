@@ -105,9 +105,9 @@ def init_db():
     result = con.execute("SELECT COUNT(*) FROM categories").fetchone()
 
     if result:
-        print(f"✅ Database initialized successfully with {result[0]} categories.")
+        print(f"Database initialized successfully with {result[0]} categories.")
     else:
-        print("⚠️ Warning: Could not verify category count.")
+        print("Could not verify category count.")
     
     con.close()
 
