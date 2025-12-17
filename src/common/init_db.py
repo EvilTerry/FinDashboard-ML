@@ -8,11 +8,12 @@ def init_db():
     
     con = duckdb.connect(DB_PATH)
     
-    # 1. Create Sequences
+    # Create Sequences
     con.execute("CREATE SEQUENCE IF NOT EXISTS seq_category_id;")
     con.execute("CREATE SEQUENCE IF NOT EXISTS seq_transaction_id;")
+    con.execute("CREATE SEQUENCE IF NOT EXISTS seq_model_id;")
     
-    # 2. Create Categories Table
+    # Create Categories Table
     con.execute("""
         CREATE TABLE IF NOT EXISTS categories (
             id INTEGER DEFAULT nextval('seq_category_id') PRIMARY KEY,
@@ -21,7 +22,7 @@ def init_db():
         );
     """)
     
-    # 3. Create Transactions Table
+    # Create Transactions Table
     con.execute("""
         CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER DEFAULT nextval('seq_transaction_id') PRIMARY KEY,
@@ -51,7 +52,7 @@ def init_db():
         );
     """)
     
-    # 4. Seed Categories
+    # Seed Categories
     categories = [
         ('Groceries', False),
         ('Dining & Takeout', False),
@@ -70,15 +71,37 @@ def init_db():
         ('Withdrawal', False),
         ('Other/Unknown', False)
     ]
-    
+
     print("Seeding categories...")
     for name, is_income in categories:
         try:
             con.execute("INSERT INTO categories (name, is_income) VALUES (?, ?)", [name, is_income])
         except duckdb.ConstraintException:
             pass
+
+    # Create a model metric table
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS model_experiments (
+            id INTEGER DEFAULT nextval('seq_model_id') PRIMARY KEY,
             
-    # 5. Verify
+            -- Versioning
+            model_version VARCHAR NOT NULL UNIQUE,  -- e.g. "v1_20240101"
+            algorithm VARCHAR,                      -- e.g. "LinearSVC"
+            
+            -- Metrics (The Report Card)
+            accuracy DOUBLE,
+            precision DOUBLE,
+            recall DOUBLE,
+            f1_score DOUBLE,
+            
+            -- Context (Metadata)
+            training_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            training_data_size INTEGER,
+            notes VARCHAR
+        );
+    """)
+            
+    # Verify
     result = con.execute("SELECT COUNT(*) FROM categories").fetchone()
 
     if result:
