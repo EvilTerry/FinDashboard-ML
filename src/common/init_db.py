@@ -57,18 +57,17 @@ def init_db():
         ('Groceries', False),
         ('Dining & Takeout', False),
         ('Housing & Rent', False),
-        ('Bills & Utilities', False),
         ('Subscriptions', False),
         ('Shopping', False),
-        ('Public Transport', False),
+        ('Travel & Transport', False),
         ('Petrol Station', False),
         ('Health & Drugstore', False),
         ('Insurance', False),
         ('Income', True),
         ('Transfers (P2P)', False),
-        ('Financial & Savings', False),
         ('Tobacco', False),
         ('Withdrawal', False),
+        ('Entertainment & Gaming', False),
         ('Other/Unknown', False)
     ]
 
