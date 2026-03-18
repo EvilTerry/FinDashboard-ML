@@ -1,5 +1,7 @@
-duckdb==1.4.3
 joblib==1.5.3
+python-dotenv==1.2.2
+psycopg2-binary==2.9.11
+streamlit==1.52.2
 numpy==2.3.5
 pandas==2.3.3
 python-dateutil==2.9.0.post0
