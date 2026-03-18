@@ -12,6 +12,7 @@ Inference is run automatically on the new transactions.
 """
 import os
 import argparse
+import requests
 import pandas as pd
 import psycopg2
 from dotenv import load_dotenv
@@ -24,6 +25,22 @@ from src.pipeline.predict import run_inference
 load_dotenv()
 
 DB_URL = os.environ.get("DATABASE_URL", "postgresql://localhost/db")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+
+
+def send_telegram(message: str):
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("Telegram not configured, skipping notification.")
+        return
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": TELEGRAM_CHAT_ID, "text": message},
+            timeout=10,
+        )
+    except Exception as e:
+        print(f"Telegram notification failed: {e}")
 
 ADAPTERS = {
     "swedbank": SwedbankAdapter(),
@@ -68,7 +85,7 @@ def fetch(bank_files: dict[str, str], output_path: str):
 
     run_inference()
 
-    # TODO: send notification
+    send_telegram(f"FinDashboard: {len(combined)} new transactions fetched and categorised. Go review them.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
