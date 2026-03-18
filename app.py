@@ -4,6 +4,8 @@ import psycopg2
 import pandas as pd
 from dotenv import load_dotenv
 
+from src.pipeline.train import train
+
 load_dotenv()
 
 DB_URL = os.environ.get("DATABASE_URL", "postgresql://localhost/db")
@@ -218,6 +220,16 @@ def page_models():
         ORDER BY trained_at DESC
     """, con)
     con.close()
+
+    col1, _ = st.columns([2, 8])
+    if col1.button("Retrain Model", type="primary"):
+        with st.spinner("Training..."):
+            try:
+                train()
+                st.success("Model trained and saved.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Training failed: {e}")
 
     if df.empty:
         st.info("No models trained yet.")
