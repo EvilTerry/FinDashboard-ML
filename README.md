@@ -1,17 +1,19 @@
 # FinDashboard-ML
 
-A self-hosted, automated personal finance platform that replaces manual spreadsheet tracking with Machine Learning.
+A self-hosted, automated personal finance platform with ML-powered transaction categorisation.
 
-This system ingests raw bank transactions, automatically classifies them and presents them in a dashboard for insights and verification.
+Transactions are ingested from bank CSV exports, automatically classified by a trained model, reviewed and corrected via a Streamlit dashboard, and used to retrain the model over time.
 
 ### Key Features
-- **Analytics Dashboard:** Visualizing financial data with charts, spending breakdowns and historical trends using Streamlit
-- **Auto-Classification:** Categorization of transactions using Scikit-Learn
-- **Human Verification:** A Streamlit dashboard to audit low-confidence predictions and correct errors
-- **Continous Improvements:** The Orchestrator periodically retrains the model on newly verified data, making it smarter over time
-- **Private:** Self-hosted DuckDB database ensuring financial data never leaves the server
+- **Analytics Dashboard:** Spending breakdowns and category summaries via Streamlit
+- **Auto-Classification:** TF-IDF + LinearSVC pipeline that categorises transactions on ingest
+- **Human Verification:** Review predicted categories, correct mistakes, and confirm them in the UI
+- **Continuous Improvement:** Retrain the model on verified transactions with one button click — each cycle makes it smarter
+- **Telegram Notifications:** Get a message when a new batch is fetched and ready for review
+- **Private:** Self-hosted on your own machine — financial data never leaves your server
 
 ### Tech Stack
-- **Core:** Python 3.14.0, Pandas, Scikit-Learn
-- **Database:** DuckDB
-- **Services:** Streamlit (Dashboard), Docker Compose
+- **Core:** Python 3.14, Pandas, Scikit-Learn
+- **Database:** PostgreSQL (Docker)
+- **Dashboard:** Streamlit
+- **Infrastructure:** Docker Compose, Caddy (reverse proxy)
