@@ -1,8 +1,9 @@
 .venv
 __pycache__/
 .DS_Store
+.vscode
+.env
 
-data/data.duckdb
-data/backups/*.csv
+data/*.csv
 
 models/*.joblib
