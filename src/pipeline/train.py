@@ -33,6 +33,7 @@ def train(notes: str = None):
     y = df['category_id']
 
     hyperparameters = {
+        "feature_columns": ["normalized_merchant"],
         "word_ngram_range": (1, 2),
         "char_ngram_range": (3, 5),
         "min_df": 2,
