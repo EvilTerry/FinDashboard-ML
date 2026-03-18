@@ -5,5 +5,7 @@ __pycache__/
 .env
 
 data/*.csv
+data/raw/*.csv
+data/backups/*.csv
 
 models/*.joblib
