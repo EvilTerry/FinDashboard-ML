@@ -107,7 +107,7 @@ def page_dashboard():
                    COUNT(*) AS txns
             FROM transactions t
             WHERE t.amount < 0 AND t.date BETWEEN %s AND %s
-            GROUP BY merchant
+            GROUP BY COALESCE(t.merchant, t.description, '(unknown)')
             ORDER BY total DESC
             LIMIT 10
         """, con, params=(month_start, month_end))
