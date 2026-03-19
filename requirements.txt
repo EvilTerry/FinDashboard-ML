@@ -1,4 +1,5 @@
 joblib==1.5.3
+xlrd==2.0.1
 python-dotenv==1.2.2
 psycopg2-binary==2.9.11
 streamlit==1.52.2

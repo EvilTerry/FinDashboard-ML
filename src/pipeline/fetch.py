@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 
 from src.banks.swedbank import SwedbankAdapter
 from src.banks.bunq import BunqAdapter
+from src.banks.abn_amro import AbnAmroAdapter
 from src.pipeline.base import insert_transactions
 from src.pipeline.predict import run_inference
 
@@ -45,6 +46,7 @@ def send_telegram(message: str):
 ADAPTERS = {
     "swedbank": SwedbankAdapter(),
     "bunq": BunqAdapter(),
+    "abn_amro": AbnAmroAdapter(),
 }
 
 def fetch(bank_files: dict[str, str], output_path: str):
@@ -89,12 +91,15 @@ def fetch(bank_files: dict[str, str], output_path: str):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--abn_amro", type=str, help="Path to raw ABN AMRO XLS export")
     parser.add_argument("--swedbank", type=str, help="Path to raw Swedbank CSV")
     parser.add_argument("--bunq", type=str, help="Path to raw Bunq CSV")
     parser.add_argument("--output", type=str, required=True, help="Path for combined output CSV")
     args = parser.parse_args()
 
     bank_files = {}
+    if args.abn_amro:
+        bank_files["abn_amro"] = args.abn_amro
     if args.swedbank:
         bank_files["swedbank"] = args.swedbank
     if args.bunq:
