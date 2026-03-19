@@ -26,41 +26,105 @@ def page_dashboard():
     st.title("Dashboard")
     con = get_connection()
 
-    # Metrics
-    col1, col2, col3 = st.columns(3)
+    # Month selector
+    months_df = pd.read_sql("""
+        SELECT DISTINCT DATE_TRUNC('month', date) AS month
+        FROM transactions
+        ORDER BY month DESC
+    """, con)
+
+    if months_df.empty:
+        st.info("No transactions found.")
+        con.close()
+        return
+
+    month_options = months_df["month"].dt.to_period("M").astype(str).tolist()
+    selected_month = st.selectbox("Month", month_options, index=0)
+    period = pd.Period(selected_month, "M")
+    month_start = period.start_time.date()
+    month_end = period.end_time.date()
+    prior_period = period - 1
+    prior_start = prior_period.start_time.date()
+    prior_end = prior_period.end_time.date()
 
     cur = con.cursor()
 
-    cur.execute("SELECT SUM(amount) FROM transactions WHERE amount < 0")
+    cur.execute("SELECT SUM(amount) FROM transactions WHERE amount < 0 AND date BETWEEN %s AND %s", (month_start, month_end))
     total_spent = abs((cur.fetchone() or [0])[0] or 0)
 
-    cur.execute("SELECT SUM(amount) FROM transactions WHERE amount > 0")
+    cur.execute("SELECT SUM(amount) FROM transactions WHERE amount > 0 AND date BETWEEN %s AND %s", (month_start, month_end))
     total_income = (cur.fetchone() or [0])[0] or 0
+
+    cur.execute("SELECT SUM(amount) FROM transactions WHERE amount < 0 AND date BETWEEN %s AND %s", (prior_start, prior_end))
+    prior_spent = abs((cur.fetchone() or [0])[0] or 0)
+
+    cur.execute("SELECT SUM(amount) FROM transactions WHERE amount > 0 AND date BETWEEN %s AND %s", (prior_start, prior_end))
+    prior_income = (cur.fetchone() or [0])[0] or 0
 
     cur.execute("SELECT COUNT(*) FROM transactions WHERE predicted_category_id IS NOT NULL AND category_id IS NULL")
     pending_review = (cur.fetchone() or [0])[0] or 0
 
-    col1.metric("Total Spent", f"€{total_spent:,.2f}")
-    col2.metric("Total Income", f"€{total_income:,.2f}")
-    col3.metric("Pending Review", int(pending_review))
-
     cur.close()
 
-    # Spending by category
-    st.subheader("Spending by Category")
-    df_cat = pd.read_sql("""
-        SELECT c.name AS category, SUM(ABS(t.amount)) AS total
-        FROM transactions t
-        JOIN categories c ON t.category_id = c.id
-        WHERE t.amount < 0
-        GROUP BY c.name
-        ORDER BY total DESC
-    """, con)
+    net_savings = total_income - total_spent
+    prior_net = prior_income - prior_spent
 
-    if not df_cat.empty:
-        st.bar_chart(df_cat.set_index("category"))
-    else:
-        st.info("No verified transactions yet.")
+    # Metrics
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total Spent", f"€{total_spent:,.2f}",
+                delta=f"€{total_spent - prior_spent:,.2f}" if prior_spent else None,
+                delta_color="inverse")
+    col2.metric("Total Income", f"€{total_income:,.2f}",
+                delta=f"€{total_income - prior_income:,.2f}" if prior_income else None)
+    col3.metric("Net Savings", f"€{net_savings:,.2f}",
+                delta=f"€{net_savings - prior_net:,.2f}" if (prior_income or prior_spent) else None)
+    col4.metric("Pending Review", int(pending_review))
+
+    # Spending by category + Top merchants side by side
+    col_left, col_right = st.columns([3, 2])
+
+    with col_left:
+        st.subheader("Spending by Category")
+        df_cat = pd.read_sql("""
+            SELECT c.name AS category, SUM(ABS(t.amount)) AS total
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            WHERE t.amount < 0 AND t.date BETWEEN %s AND %s
+            GROUP BY c.name
+            ORDER BY total DESC
+        """, con, params=(month_start, month_end))
+
+        if not df_cat.empty:
+            st.bar_chart(df_cat.set_index("category"))
+        else:
+            st.info("No verified transactions for this month.")
+
+    with col_right:
+        st.subheader("Top Merchants")
+        df_merch = pd.read_sql("""
+            SELECT COALESCE(t.merchant, t.description, '(unknown)') AS merchant,
+                   SUM(ABS(t.amount)) AS total,
+                   COUNT(*) AS txns
+            FROM transactions t
+            WHERE t.amount < 0 AND t.date BETWEEN %s AND %s
+            GROUP BY merchant
+            ORDER BY total DESC
+            LIMIT 10
+        """, con, params=(month_start, month_end))
+
+        if not df_merch.empty:
+            st.dataframe(
+                df_merch,
+                column_config={
+                    "merchant": st.column_config.TextColumn("Merchant"),
+                    "total": st.column_config.NumberColumn("Total (€)", format="%.2f"),
+                    "txns": st.column_config.NumberColumn("Txns"),
+                },
+                hide_index=True,
+                use_container_width=True,
+            )
+        else:
+            st.info("No transactions for this month.")
 
     con.close()
 
@@ -72,11 +136,23 @@ def page_transactions():
     con = get_connection()
     name_to_id, category_names = get_categories(con)
 
-    # Filters
-    col1, col2, col3 = st.columns(3)
+    # Filters — row 1
+    col1, col2, col3, col4 = st.columns(4)
     search = col1.text_input("Search merchant / description")
     category_filter = col2.selectbox("Category", ["All"] + category_names)
-    unverified_only = col3.checkbox("Unverified only")
+
+    accounts_df = pd.read_sql("SELECT DISTINCT source_account FROM transactions WHERE source_account IS NOT NULL ORDER BY source_account", con)
+    account_names = accounts_df["source_account"].tolist()
+    account_filter = col3.selectbox("Account", ["All"] + account_names)
+    unverified_only = col4.checkbox("Unverified only")
+
+    # Filters — row 2: date range
+    date_bounds = pd.read_sql("SELECT MIN(date) AS min_date, MAX(date) AS max_date FROM transactions", con)
+    min_date = date_bounds["min_date"].iloc[0]
+    max_date = date_bounds["max_date"].iloc[0]
+    col_from, col_to, *_ = st.columns([2, 2, 6])
+    date_from = col_from.date_input("From", value=min_date, min_value=min_date, max_value=max_date)
+    date_to = col_to.date_input("To", value=max_date, min_value=min_date, max_value=max_date)
 
     filters = []
     params = []
@@ -87,10 +163,15 @@ def page_transactions():
     if category_filter != "All":
         filters.append("c.name = %s")
         params.append(category_filter)
+    if account_filter != "All":
+        filters.append("t.source_account = %s")
+        params.append(account_filter)
     if unverified_only:
         filters.append("t.category_id IS NULL")
+    filters.append("t.date BETWEEN %s AND %s")
+    params += [date_from, date_to]
 
-    where = ("WHERE " + " AND ".join(filters)) if filters else ""
+    where = "WHERE " + " AND ".join(filters)
 
     # Pagination
     if "tx_page" not in st.session_state:
@@ -99,7 +180,7 @@ def page_transactions():
     offset = st.session_state.tx_page * rows_per_page
 
     df = pd.read_sql(f"""
-        SELECT t.id, t.date, t.merchant, t.amount, t.currency, c.name AS category
+        SELECT t.id, t.date, t.merchant, t.amount, t.currency, t.source_account, c.name AS category
         FROM transactions t
         LEFT JOIN categories c ON t.category_id = c.id
         {where}
@@ -115,6 +196,7 @@ def page_transactions():
             "merchant": st.column_config.TextColumn(disabled=True),
             "amount": st.column_config.NumberColumn(disabled=True, format="%.2f"),
             "currency": st.column_config.TextColumn(disabled=True),
+            "source_account": st.column_config.TextColumn("Account", disabled=True),
             "category": st.column_config.SelectboxColumn("Category", options=category_names, required=False),
         },
         hide_index=True,
