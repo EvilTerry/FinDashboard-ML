@@ -78,12 +78,14 @@ def page_dashboard():
     # Metrics
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Spent", f"€{total_spent:,.2f}",
-                delta=f"€{total_spent - prior_spent:,.2f}" if prior_spent else None,
+                delta=round(total_spent - prior_spent, 2) if prior_spent else None,
                 delta_color="inverse")
     col2.metric("Total Income", f"€{total_income:,.2f}",
-                delta=f"€{total_income - prior_income:,.2f}" if prior_income else None)
+                delta=round(total_income - prior_income, 2) if prior_income else None,
+                delta_color="normal")
     col3.metric("Net Savings", f"€{net_savings:,.2f}",
-                delta=f"€{net_savings - prior_net:,.2f}" if (prior_income or prior_spent) else None)
+                delta=round(net_savings - prior_net, 2) if (prior_income or prior_spent) else None,
+                delta_color="normal")
     col4.metric("Pending Review", int(pending_review))
 
     # Spending by category + Top merchants side by side
