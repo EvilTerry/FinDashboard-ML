@@ -38,8 +38,11 @@ def page_dashboard():
         con.close()
         return
 
+    sel_col, excl_col = st.columns([3, 1])
+    months_df["month"] = pd.to_datetime(months_df["month"], utc=True).dt.tz_convert(None)
     month_options = months_df["month"].dt.to_period("M").astype(str).tolist()
-    selected_month = st.selectbox("Month", month_options, index=0)
+    selected_month = sel_col.selectbox("Month", month_options, index=0)
+    exclude_p2p = excl_col.checkbox("Exclude P2P transfers", value=True)
     period = pd.Period(selected_month, "M")
     month_start = period.start_time.date()
     month_end = period.end_time.date()
@@ -49,16 +52,19 @@ def page_dashboard():
 
     cur = con.cursor()
 
-    cur.execute("SELECT SUM(amount) FROM transactions WHERE amount < 0 AND date BETWEEN %s AND %s", (month_start, month_end))
+    p2p_filter = "AND (c2.name IS NULL OR c2.name != 'Transfers (P2P)')" if exclude_p2p else ""
+    p2p_join = "LEFT JOIN categories c2 ON t.category_id = c2.id" if exclude_p2p else ""
+
+    cur.execute(f"SELECT SUM(t.amount) FROM transactions t {p2p_join} WHERE t.amount < 0 AND t.date BETWEEN %s AND %s {p2p_filter}", (month_start, month_end))
     total_spent = abs((cur.fetchone() or [0])[0] or 0)
 
-    cur.execute("SELECT SUM(amount) FROM transactions WHERE amount > 0 AND date BETWEEN %s AND %s", (month_start, month_end))
+    cur.execute(f"SELECT SUM(t.amount) FROM transactions t {p2p_join} WHERE t.amount > 0 AND t.date BETWEEN %s AND %s {p2p_filter}", (month_start, month_end))
     total_income = (cur.fetchone() or [0])[0] or 0
 
-    cur.execute("SELECT SUM(amount) FROM transactions WHERE amount < 0 AND date BETWEEN %s AND %s", (prior_start, prior_end))
+    cur.execute(f"SELECT SUM(t.amount) FROM transactions t {p2p_join} WHERE t.amount < 0 AND t.date BETWEEN %s AND %s {p2p_filter}", (prior_start, prior_end))
     prior_spent = abs((cur.fetchone() or [0])[0] or 0)
 
-    cur.execute("SELECT SUM(amount) FROM transactions WHERE amount > 0 AND date BETWEEN %s AND %s", (prior_start, prior_end))
+    cur.execute(f"SELECT SUM(t.amount) FROM transactions t {p2p_join} WHERE t.amount > 0 AND t.date BETWEEN %s AND %s {p2p_filter}", (prior_start, prior_end))
     prior_income = (cur.fetchone() or [0])[0] or 0
 
     cur.execute("SELECT COUNT(*) FROM transactions WHERE predicted_category_id IS NOT NULL AND category_id IS NULL")
@@ -85,11 +91,12 @@ def page_dashboard():
 
     with col_left:
         st.subheader("Spending by Category")
-        df_cat = pd.read_sql("""
+        cat_p2p = "AND c.name != 'Transfers (P2P)'" if exclude_p2p else ""
+        df_cat = pd.read_sql(f"""
             SELECT c.name AS category, SUM(ABS(t.amount)) AS total
             FROM transactions t
             JOIN categories c ON t.category_id = c.id
-            WHERE t.amount < 0 AND t.date BETWEEN %s AND %s
+            WHERE t.amount < 0 AND t.date BETWEEN %s AND %s {cat_p2p}
             GROUP BY c.name
             ORDER BY total DESC
         """, con, params=(month_start, month_end))
@@ -101,12 +108,14 @@ def page_dashboard():
 
     with col_right:
         st.subheader("Top Merchants")
-        df_merch = pd.read_sql("""
+        merch_p2p_join = "LEFT JOIN categories cm ON t.category_id = cm.id" if exclude_p2p else ""
+        merch_p2p = "AND (cm.name IS NULL OR cm.name != 'Transfers (P2P)')" if exclude_p2p else ""
+        df_merch = pd.read_sql(f"""
             SELECT COALESCE(t.merchant, t.description, '(unknown)') AS merchant,
                    SUM(ABS(t.amount)) AS total,
                    COUNT(*) AS txns
-            FROM transactions t
-            WHERE t.amount < 0 AND t.date BETWEEN %s AND %s
+            FROM transactions t {merch_p2p_join}
+            WHERE t.amount < 0 AND t.date BETWEEN %s AND %s {merch_p2p}
             GROUP BY COALESCE(t.merchant, t.description, '(unknown)')
             ORDER BY total DESC
             LIMIT 10
