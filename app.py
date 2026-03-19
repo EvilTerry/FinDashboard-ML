@@ -28,7 +28,7 @@ def page_dashboard():
 
     # Month selector
     months_df = pd.read_sql("""
-        SELECT DISTINCT DATE_TRUNC('month', date) AS month
+        SELECT DISTINCT DATE_TRUNC('month', date)::date AS month
         FROM transactions
         ORDER BY month DESC
     """, con)
@@ -39,7 +39,7 @@ def page_dashboard():
         return
 
     sel_col, excl_col = st.columns([3, 1])
-    months_df["month"] = pd.to_datetime(months_df["month"], utc=True).dt.tz_convert(None)
+    months_df["month"] = pd.to_datetime(months_df["month"])
     month_options = months_df["month"].dt.to_period("M").astype(str).tolist()
     selected_month = sel_col.selectbox("Month", month_options, index=0)
     exclude_p2p = excl_col.checkbox("Exclude P2P transfers", value=True)
