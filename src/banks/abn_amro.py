@@ -37,12 +37,6 @@ class AbnAmroAdapter(BankAdapter):
         df['currency'] = df['mutationcode'].str.strip()
 
         df['amount'] = pd.to_numeric(df['amount'].str.replace(',', '.'), errors='coerce')
-        df['startsaldo'] = pd.to_numeric(df['startsaldo'].str.replace(',', '.'), errors='coerce')
-        df['endsaldo'] = pd.to_numeric(df['endsaldo'].str.replace(',', '.'), errors='coerce')
-
-        # Sign is positive when balance increased, negative when it decreased
-        sign = (df['endsaldo'] - df['startsaldo']).apply(lambda x: 1.0 if x >= 0 else -1.0)
-        df['amount'] = df['amount'] * sign
 
         df['merchant'] = df['description'].apply(_extract_merchant)
         df['description'] = df['description'].apply(_extract_description)
